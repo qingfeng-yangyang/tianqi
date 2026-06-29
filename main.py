@@ -14,7 +14,7 @@ def run_agent():
 
     # ===== 天气（修改为获取逐小时和每日预报） =====
     weather = requests.get(
-        "https://api.open-meteo.com/v1/forecast?latitude=23.12&longitude=114.41&hourly=temperature_2m,precipitation_probability,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FShanghai"
+        "https://api.open-meteo.com/v1/forecast?latitude=23.74&longitude=114.70&hourly=temperature_2m,precipitation_probability,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FShanghai"
     ).json()
 
     # 提取未来1小时（以早上7点第7个数据点为例）
