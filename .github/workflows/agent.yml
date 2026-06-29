@@ -30,4 +30,4 @@ jobs:
         EMAIL: ${{ secrets.EMAIL }}
         APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
         ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
-      run: python weather_agent.py
+      run: python main.py  # 👈 这里已成功更换为 main.py
