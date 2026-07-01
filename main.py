@@ -99,7 +99,7 @@ def run_agent():
    【全天宏观大局】最高温：(填入最高温) °C / 最低温：(填入最低温) °C /
    最高风速：{wind_max} km/h / 最低风速：{wind_min} km/h
    全天降水量：{precip_sum} mm
-   
+
    🤖 豆包决策简报
 
    # {city_name}今日天气简报
