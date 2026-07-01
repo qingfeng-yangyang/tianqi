@@ -1,6 +1,7 @@
 import os
 import requests
 import smtplib
+from datetime import datetime
 from email.mime.text import MIMEText
 from openai import OpenAI
 
@@ -10,10 +11,19 @@ def run_agent():
     app_password = os.environ["APP_PASSWORD"]
     ark_key = os.environ["ARK_API_KEY"]
 
-    # ===== 2. 气象数据抓取 (已精准切换至：河源古竹镇) =====
+    # ===== 2. 获取当前系统时间 =====
+    current_hour = datetime.now().hour
+    if 5 <= current_hour < 12:
+        time_tag = "7点"
+    elif 12 <= current_hour < 18:
+        time_tag = "午后"
+    else:
+        time_tag = "晚间"
+
+    # ===== 3. 气象数据抓取 (广东省河源市古竹镇) =====
     url = (
         "https://api.open-meteo.com/v1/forecast"
-        "?latitude=23.54&longitude=114.74"  # 古竹镇坐标
+        "?latitude=23.54&longitude=114.74"
         "&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         "&hourly=temperature_2m,precipitation_probability,cloud_cover,visibility"
         "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
@@ -23,7 +33,6 @@ def run_agent():
     try:
         weather_res = requests.get(url).json()
         
-        # 提取实时与全天大局
         current = weather_res["current"]
         cur_temp = current["temperature_2m"]
         cur_humidity = current["relative_humidity_2m"]
@@ -41,40 +50,47 @@ def run_agent():
         sunrise = daily["sunrise"][0].split("T")[-1] 
         sunset = daily["sunset"][0].split("T")[-1]
 
-        # 封装给 AI 的原始数据
+        # 头部原始数据卡片
+        raw_info = f"""☀️ 今日天气决策情报
+
+【出门1小时预报】温度：{cur_temp} °C / 降水概率：{next_pop} % / 风速：{cur_wind} km/h
+【全天宏观大局】最高温：{temp_max} °C / 最低温：{temp_min} °C
+"""
+
         user_weather_data = f"""
+- 当前运行时间段: {time_tag}
 - 城市区域: 广东省河源市古竹镇
 - 实时天气: 温度 {cur_temp}°C / 湿度 {cur_humidity}% / 风速 {cur_wind} km/h
-- 今日极端温差: {temp_min}°C ~ {temp_max}°C
-- 日出时刻: {sunrise} | 日落时刻: {sunset}
+- 今日温差: {temp_min}°C ~ {temp_max}°C
+- 日出日落: {sunrise} / {sunset}
 - 未来一小时精细预报: 温度 {next_temp}°C / 降水概率 {next_pop}% / 云量 {next_cloud}% / 能见度 {next_vis / 1000:.1f} km
 """
     except Exception as e:
         print(f"气象数据抓取失败：{e}")
         return
 
-    # ===== 3. AI 核心推演 (换回大白话优美文风) =====
+    # ===== 4. AI 核心推演 (修改第三板块为必出分析) =====
     client = OpenAI(
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         api_key=ark_key,
     )
 
     prompt = f"""# Role
-你是一个兼具顶级气象学家视角、风光摄影师灵魂、以及温和贴心管家属性的智能体。你说话语气亲切自然，拒绝死板的表格。
+你是一个兼具顶级气象学家视角与风光摄影师灵魂的智能体。请严格按照用户指定的 Markdown 格式输出。
 
 # Task
-根据传入的河源古竹镇气象数据，用充满生活温度、画面感和人性化的【段落大白话】，为用户写一份早报。
+根据传入的河源古竹镇气象数据，生成一份天气决策报告。
 
 # Rules (硬性约束)
-1. 【文风要求】：模仿精美的人类文字。严禁输出类似“- 城市：xx \n - 实时天气：xx”这样的结构化表格。请将所有核心信息优雅地揉进段落里。
-2. 【内容必须包含】：
-   - 必须先点出“河源古竹镇”以及你根据温度、湿度和风速推演出的【实际体感温度】（如：黏糊闷热、清爽宜人等）。
-   - 必须用一句话极其精准地提醒【未来一小时短时状况】（现在出门会不会撞上暴雨或狂风）。
-   - 必须给出明确的穿衣方案、生活出行建议以及【随身物品建议】（如遮阳伞、防晒袖套、雨伞兜底等）。
-3. 【大自然追光（按需留白）】：
-   - 默默评估云量、能见度等指标。如果今天没有任何值得特意推开窗、抬头、或出门捕捉的自然奇观（彩虹、顶级火烧云、耶稣光、云海），关于奇观的部分【必须保持绝对空白】，严格节省 token。
-   - 只有当某项奇观的触发几率大于 70% 时，才在文章最后空一行，单独写一段优美的【奇观预警】，指出精准时刻与视觉画面。
-4. 【字数严控】：总字数严格控制在 220 字以内，拒绝任何废话前缀。
+1. 【严格遵循排版格式】：输出的内容必须完全匹配以下制式，结构分明：
+   # 今日{{当前运行时间段}}决策早报
+   ## 1. 未来1小时出门安排
+   (大白话内容：必须包含结合温湿度算出的【实际体感温度】和黏糊/清爽描述；【未来一小时短时状况】如是否有突发降水狂风、骑行/步行提醒)
+   ## 2. 全天穿搭与防雨防晒规划
+   (大白话内容：必须包含明确具体的【穿衣建议】；针对温差和紫外线的生活指南；具体的【随身物品建议】)
+   ## 3. 今日大自然追光预测
+   (大白话内容：AI自主推演今天是否有几率触发特殊自然现象。不管有没有，都必须在这里给出一个明确的结论。你可以写“今日各大罕见奇观触发概率均低于30%，主要是因为云量/能见度不达标”；或者当某项奇观几率大于70%时，直接升级为【高能奇观预警】，指出精准时刻与视觉画面描述)
+2. 【字数与语气】：用充满生活温度、专业且接地气的大白话撰写。总字数控制在 260 字以内，拒绝任何废话前缀。
 
 # 今日原始气象数据流：
 [DATA_START]
@@ -85,18 +101,19 @@ def run_agent():
         completion = client.chat.completions.create(
             model="ep-20260628222322-mstpq",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4 
+            temperature=0.3
         )
-        advice = completion.choices[0].message.content
+        ai_advice = completion.choices[0].message.content
     except Exception as e:
-        advice = f"AI调用失败：{e}"
+        ai_advice = f"AI调用失败：{e}"
 
-    # ===== 4. 邮件发送 =====
-    print(advice)
+    # ===== 5. 拼装与发送 =====
+    final_body = f"{raw_info}\n\n🤖 豆包决策早报\n\n{ai_advice}"
+    print(final_body)
     
     try:
-        msg = MIMEText(advice, "plain", "utf-8")
-        msg["Subject"] = "⏰ 古竹镇实时气象与追光决策早报"
+        msg = MIMEText(final_body, "plain", "utf-8")
+        msg["Subject"] = f"⏰ 您的{time_tag}天气决策早报"
         msg["From"] = email
         msg["To"] = email
 
