@@ -11,13 +11,17 @@ def run_agent():
     app_password = os.environ["APP_PASSWORD"]
     ark_key = os.environ["ARK_API_KEY"]
 
+    # 定位城市名称（用于动态标题）
+    city_name = "河源古竹"
+
     # ===== 2. 气象数据抓取 (广东省河源市古竹镇) =====
+    # 增加了全天最高/最低风速、全天最高降水概率的每日字段
     url = (
         "https://api.open-meteo.com/v1/forecast"
         "?latitude=23.54&longitude=114.74"
         "&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         "&hourly=temperature_2m,precipitation_probability,cloud_cover,visibility"
-        "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
+        "&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_speed_10m_min,precipitation_probability_max,sunrise,sunset"
         "&timezone=Asia%2FShanghai"
     )
     
@@ -38,17 +42,25 @@ def run_agent():
         daily = weather_res["daily"]
         temp_max = daily["temperature_2m_max"][0]
         temp_min = daily["temperature_2m_min"][0]
+        
+        # 提取真实的全天宏观数据
+        wind_max = daily["wind_speed_10m_max"][0]
+        wind_min = daily["wind_speed_10m_min"][0]
+        daily_pop = daily["precipitation_probability_max"][0]
+        
         sunrise = daily["sunrise"][0].split("T")[-1] 
         sunset = daily["sunset"][0].split("T")[-1]
 
-        # 头部原始数据卡片
+        # 头部原始数据卡片（加入全天风速与全天降雨概率）
         raw_info = f"""☀️ 今日天气决策情报
 
 【出门1小时预报】温度：{cur_temp} °C / 降水概率：{next_pop} % / 风速：{cur_wind} km/h
 【全天宏观大局】最高温：{temp_max} °C / 最低温：{temp_min} °C
+最高风速：{wind_max} km/h / 最低风速：{wind_min} km/h
+降雨概率：{daily_pop} %
 """
 
-        # 封装给 AI 的原料，重点强化温湿度、风速关联
+        # 封装给 AI 的原料（同步补充全天宏观数据）
         user_weather_data = f"""
 - 城市区域: 广东省河源市古竹镇
 - 实时当前温度: {cur_temp}°C
@@ -56,6 +68,9 @@ def run_agent():
 - 当前实际风速: {cur_wind} km/h
 - 全天最高气温: {temp_max}°C
 - 全天最低气温: {temp_min}°C
+- 全天最高风速: {wind_max} km/h
+- 全天最低风速: {wind_min} km/h
+- 全天最高降水概率: {daily_pop}%
 - 下一小时精细预报: 温度 {next_temp}°C / 降水概率 {next_pop}% / 云量 {next_cloud}% / 能见度 {next_vis / 1000:.1f} km
 """
     except Exception as e:
@@ -75,19 +90,19 @@ def run_agent():
 根据传入的河源古竹镇原始气象数据，**严格按照指定格式**生成一整套完整的 Markdown 决策看板。
 
 # Rules (硬性约束)
-1. 【标题必须写死】：严禁自作聪明生成带有时间段的标题。大标题必须雷打不动地输出为：# 今日天气简报
+1. 【标题动态输出】：大标题必须根据定位动态输出为：# {city_name}今日天气简报。严禁自作聪明生成带有时间段的标题。
 2. 【体感温度必须包含实际数据】：在 `## 1` 的子集里，你必须结合当前的“实时温度、相对湿度和风速”进行综合推演，**给出一个具体的、带物理单位的预计体感温度数字（如“约 xx°C”）**，并紧跟一两个词形容体感。
 3. 【严格遵循一整套排版格式】：输出的内容必须完全匹配以下制式，严禁合并或缺少模块：
 
    ☀️ 今日天气决策情报
    【出门1小时预报】温度：(填入下一小时温度) °C / 降水概率：(填入下一小时降水概率) % / 风速：(填入当前风速) km/h
    【全天宏观大局】最高温：(填入最高温) °C / 最低温：(填入最低温) °C /
-   最高风速：（填入全天最高风速）km/h / 最低风速：（填入全天最低风速）km/h
-   降雨概率：（填入全天降雨概率）%
+   最高风速：{wind_max} km/h / 最低风速：{wind_min} km/h
+   降雨概率：{daily_pop} %
 
    🤖 豆包决策简报
 
-   # 今日天气简报
+   # {city_name}今日天气简报
    ## 1. 未来1小时出门安排
    - 实际体感温度：约 (填入计算出的体感温度数字)°C，(填入形容词，如“偏黏糊/干爽/闷热/凉爽”)
    (接下来另起一行输出大白话内容：结合体感进行【未来一小时短时状况】的具体描述，说明是否有突发降水狂风、给出骑行或步行提醒)
@@ -120,7 +135,7 @@ def run_agent():
     
     try:
         msg = MIMEText(final_body, "plain", "utf-8")
-        msg["Subject"] = "⏰ 今日天气简报" # 主题同步写死
+        msg["Subject"] = f"⏰ {city_name}今日天气简报" # 邮件主题同步动态加入城市名
         msg["From"] = email
         msg["To"] = email
 
