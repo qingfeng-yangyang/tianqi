@@ -11,23 +11,42 @@ def run_agent():
     app_password = os.environ["APP_PASSWORD"]
     ark_key = os.environ["ARK_API_KEY"]
 
-    # 配置经纬度（自动切换定位与天气）
-    lat = 23.54
+      lat = 23.54
     lon = 114.74
 
-    # ===== 1.5 动态逆地理编码：获取精简城市名 =====
-    city_name = "未知城市"
+    # ===== 1.5 动态逆地理编码：精准精简到【市+县/区】 =====
+    city_name = "未知位置"
     try:
         geo_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&accept-language=zh"
-        headers = {"User-Agent": "WeatherAgent/1.0"}
-        geo_res = requests.get(geo_url, headers=headers).json()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        geo_res = requests.get(geo_url, headers=headers, timeout=5).json()
         address = geo_res.get("address", {})
         
-        raw_city = address.get("district") or address.get("city") or address.get("town") or "未知"
-        city_name = raw_city.replace("市", "").replace("区", "").replace("镇", "").replace("街道", "")
+        # 1. 抓取“市”一级（兼容直辖市的情况，直辖市通常在 city 或 m统一字段里）
+        city = address.get("city") or address.get("municipality") or ""
+        
+        # 2. 抓取“县/区”一级
+        county = address.get("county") or address.get("district") or ""
+        
+        # 如果市和区都没抓到，尝试拿镇/村兜底
+        if not city and not county:
+            city_name = address.get("town") or address.get("village") or "本地"
+        else:
+            # 清洗多余的行政单位后缀，保持页面清爽
+            city = city.replace("市", "")
+            county = county.replace("县", "").replace("区", "")
+            
+            # 避免直辖市重复（比如 重庆重庆 -> 重庆）
+            if city == county:
+                city_name = city
+            else:
+                city_name = f"{city}{county}"
+                
     except Exception as e:
-        print(f"城市定位失败：{e}")
-        city_name = "本地"
+        print(f"城市动态定位失败（已启用备用硬编码）：{e}")
+        city_name = "河源紫金"  # 发生异常时的降级名字
 
     # ===== 2. 气象数据抓取 =====
     url = (
