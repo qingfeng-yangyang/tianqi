@@ -12,7 +12,7 @@ def run_agent():
     ark_key = os.environ["ARK_API_KEY"]
 
     # 配置经纬度（23.54, 114.74 对应广东省河源市紫金县古竹镇附近）
-    lat = 23.54
+    lat = 40.67
     lon = 114.74
 
     # ===== 1.5 动态逆地理编码：精准精简到【市+县/区】 =====
@@ -130,7 +130,7 @@ def run_agent():
 - 【实时天气】
 温度：{cur_temp}°C 
 湿度：{cur_humidity}% 
-风速{cur_wind}km/h
+风速：{cur_wind}km/h
 
 - 实际体感温度：约 [计算出的体感温度数字]°C [一到两个词形容体感，例如：闷热/干爽/凉爽]
 
