@@ -1,24 +1,20 @@
 import os
-import sys
 import requests
+import smtplib
+from email.mime.text import MIMEText
 from openai import OpenAI
-import tkinter as tk
-from tkinter import messagebox
 
 def run_agent():
-    # ===== 1. 获取本地环境变量 =====
-    try:
-        ark_key = os.environ["ARK_API_KEY"]
-    except KeyError:
-        show_output("[错误] 未找到环境变量 ARK_API_KEY，请先在本地配置它。")
-        return
+    # ===== 1. 获取 GitHub 保险柜里的密钥 =====
+    email = os.environ["EMAIL"]
+    app_password = os.environ["APP_PASSWORD"]
+    ark_key = os.environ["ARK_API_KEY"]
 
-    # ===== 2. 气象数据深度抓取 (追加了云量、能见度等追光指标) =====
-    # 坐标 22.35, 113.30 对应你原本请求的区域
+    # ===== 2. 气象数据深度抓取 (保留云量、能见度等追光指标) =====
     url = (
         "https://api.open-meteo.com/v1/forecast"
         "?latitude=22.35&longitude=113.30"
-        "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
+        "&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         "&hourly=temperature_2m,precipitation_probability,cloud_cover,visibility"
         "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
         "&timezone=Asia%2FShanghai"
@@ -35,19 +31,19 @@ def run_agent():
         
         # 提取【未来一小时】与【宏观追光】数据
         hourly = weather_res["hourly"]
-        next_temp = hourly["temperature_2m"][1]       # 下一小时温度
-        next_pop = hourly["precipitation_probability"][1] # 下一小时降水概率
-        next_cloud = hourly["cloud_cover"][1]         # 下一小时云量
-        next_vis = hourly["visibility"][1]            # 下一小时能见度(米)
+        next_temp = hourly["temperature_2m"][1]       
+        next_pop = hourly["precipitation_probability"][1] 
+        next_cloud = hourly["cloud_cover"][1]         
+        next_vis = hourly["visibility"][1]            
         
         # 提取【全天大局】
         daily = weather_res["daily"]
         temp_max = daily["temperature_2m_max"][0]
         temp_min = daily["temperature_2m_min"][0]
-        sunrise = daily["sunrise"][0].split("T")[-1] # 提取出 05:30 格式
+        sunrise = daily["sunrise"][0].split("T")[-1] 
         sunset = daily["sunset"][0].split("T")[-1]
 
-        # 将数据格式化为干净的文本流，喂给 AI
+        # 封装给 AI 的数据流
         user_weather_data = f"""
 - 目标区域经纬度: 22.35, 113.30
 - 实时天气: 温度 {cur_temp}°C / 湿度 {cur_humidity}% / 风速 {cur_wind} km/h
@@ -56,16 +52,15 @@ def run_agent():
 - 未来一小时精细预报: 温度 {next_temp}°C / 降水概率 {next_pop}% / 云量 {next_cloud}% / 能见度 {next_vis / 1000:.1f} km
 """
     except Exception as e:
-        show_output(f"气象数据抓取失败：{e}")
+        print(f"气象数据抓取失败：{e}")
         return
 
-    # ===== 3. AI 核心推演 (豆包大模型) =====
+    # ===== 3. AI 核心推演 =====
     client = OpenAI(
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         api_key=ark_key,
     )
 
-    # 用三引号包裹多行 Prompt，并保留你的所有核心规则
     prompt = f"""# Role
 你是一个兼具顶级气象学家视角、风光摄影师灵魂、以及极简主义管家属性的智能体。
 
@@ -90,7 +85,7 @@ def run_agent():
 
 # 严格输出格式：
 [基础看板]
-- 城市：(根据坐标自行判断，通常为珠海/香港交界区域或对应城市名)
+- 城市：(根据坐标自行判断，通常为珠海)
 - 实时天气：(当前温度 / 湿度 / 风速)
 - 实际体感温度：(计算后的体感温度，并用一两个词形容如：闷热/凉爽/刺骨寒冷)
 - 未来一小时状况：(给出接下来一小时的天气趋势，如：持续多云/有渐进性小雨/狂风大作)
@@ -101,33 +96,32 @@ def run_agent():
 (如果有奇观，在此处空一行输出奇观预警；若无奇观，下面直接留白，什么都不写)"""
 
     try:
-        # 修正为标准的 OpenAI/ARK 聊天模型调用方法
         completion = client.chat.completions.create(
             model="ep-20260628222322-mstpq",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3 # 降低随机性，让 AI 严格遵守格式
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3 
         )
         advice = completion.choices[0].message.content
     except Exception as e:
         advice = f"AI调用失败：{e}"
 
-    # ===== 4. 输出分发：本地精美弹窗 =====
-    show_output(advice)
-
-
-def show_output(text):
-    """使用 Tkinter 在屏幕中央生成一个精美的弹窗，不卡命令行"""
-    print(text) # 终端同步打印，留个底
+    # ===== 4. 彻底抛弃弹窗，接回原本的邮件发送模块 =====
+    print(advice)  # 方便你在 GitHub 运行日志里直接肉眼查看
     
-    root = tk.Tk()
-    root.withdraw() # 隐藏主窗口
-    
-    # 弹出提示框
-    messagebox.showinfo("⏰ 今日特工气象看板", text)
-    root.destroy()
+    try:
+        msg = MIMEText(advice, "plain", "utf-8")
+        msg["Subject"] = "⏰ 您的实时气象与追光看板"
+        msg["From"] = email
+        msg["To"] = email
 
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(email, app_password)
+        server.send_message(msg)
+        server.quit()
+        print("EMAIL SENT SUCCESS")
+    except Exception as e:
+        print(f"邮件发送失败：{e}")
 
 if __name__ == "__main__":
     run_agent()
