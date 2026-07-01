@@ -11,7 +11,7 @@ def run_agent():
     app_password = os.environ["APP_PASSWORD"]
     ark_key = os.environ["ARK_API_KEY"]
 
-    # 配置经纬度（这里以珠海附近为例，改变经纬度将自动切换定位与天气）
+    # 配置经纬度（这里以珠海为例，改变经纬度将自动切换定位与天气）
     lat = 22.27
     lon = 113.57
 
@@ -23,9 +23,7 @@ def run_agent():
         geo_res = requests.get(geo_url, headers=headers).json()
         address = geo_res.get("address", {})
         
-        # 依次抓取最精准的区域级别名称
         raw_city = address.get("district") or address.get("city") or address.get("town") or "未知"
-        # 过滤掉多余的后缀，保持像“珠海”、“古竹”一样干净
         city_name = raw_city.replace("市", "").replace("区", "").replace("镇", "").replace("街道", "")
     except Exception as e:
         print(f"城市定位失败：{e}")
@@ -81,36 +79,37 @@ def run_agent():
         print(f"气象数据抓取失败：{e}")
         return
 
-    # ===== 3. AI 核心推演 (重塑强约束，追求精致卡片感) =====
+    # ===== 3. AI 核心推演 (死磕模板，拒绝偷懒，极简叙述) =====
     client = OpenAI(
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         api_key=ark_key,
     )
 
     prompt = f"""# Role
-你是一个高审美、表达精炼的智能天气管家。请为用户定制一份视觉结构清晰、充满生活温度的卡片式看板。
+你是一个高审美、叙述极其精炼的智能天气管家。你必须**100%严格复制**以下指定的模板格式，仅替换括号内的个性化推理内容。
 
-# Task
-严格基于给出的气象数据，直接渲染整份报告。禁止输出任何“好的”、“收到”或解释性的废话。
+# Rules
+1. 每一部分的叙述必须极其简短、大白话，不罗嗦。
+2. 保持模板中所有的空行，不得合并段落，以此来形成清晰的“卡片看板”视觉感。
+3. temperature已调低，请务必保持严谨的格式输出。
 
-# Format Rules (硬性视觉样式，严禁脱离此结构)
-你必须严格按照以下排版进行输出，通过空行和 Emoji 图标建立清晰的“图片卡片感”：
-
+# [OUTPUT_TEMPLATE]
 {raw_info}
 
 🤖 豆包决策简报
 
 # {city_name}今日天气简报
-
 ## 1. 未来1小时出门安排
-- 实际体感温度：约 (计算出的体感温度数字)°C，(形容词，如“闷热/干爽/凉爽”)
-(另起一行输出大白话叙述：一句话描述短时天气状态，并给出具体的出行方式步行/骑行建议，做到精炼简洁)
+- 实际体感温度：约 [根据温度湿度风速计算]°C，[形容词]
+[结合体感，一句话精炼说明未来一小时短时天气状态及具体的步行/骑行建议，拒绝废话。]
 
 ## 2. 全天穿搭与防雨防晒规划
-(大白话叙述：包含明确具体的【穿衣建议】；针对全天温差和降水的生活指南；列出具体的【随身物品】如遮阳伞、墨镜等。字数要紧凑精炼)
+[结合全天数据，一句话给出明确具体的穿衣、温差防晒指南。]
+[另起一行给出随身物品建议：具体列出所需随身物品，如：遮阳伞、墨镜。]
 
 ## 3. 今日大自然追光预测
-(大白话叙述：根据云量和能见度一句话判定。如“云量过厚，今日奇观概率较低...”或“视野极佳，傍晚触发晚霞概率高...”)
+[结合云量和能见度，用一句话判定今日自然奇观的概率。]
+# [OUTPUT_TEMPLATE_END]
 
 # 原始气象数据：
 {user_weather_data}"""
@@ -119,7 +118,7 @@ def run_agent():
         completion = client.chat.completions.create(
             model="ep-20260628222322-mstpq",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2  # 降低随机性，严格按格式输出
+            temperature=0.1  # 极致压低随机性，强行锁死结构
         )
         final_body = completion.choices[0].message.content
     except Exception as e:
