@@ -12,8 +12,8 @@ def run_agent():
     ark_key = os.environ["ARK_API_KEY"]
 
     # 配置经纬度（自动切换定位与天气）
-    lat = 22.27
-    lon = 113.57
+    lat = 23.54
+    lon = 114.74
 
     # ===== 1.5 动态逆地理编码：获取精简城市名 =====
     city_name = "未知城市"
@@ -62,8 +62,12 @@ def run_agent():
         
         # 预先组装好顶部固定的数据看板
         raw_info = f"""☀️ 今日天气决策情报
-【出门1小时预报】温度：{cur_temp} °C / 降水概率：{next_pop} % / 风速：{cur_wind} km/h
-【全天宏观大局】最高温：{temp_max} °C / 最低温：{temp_min} °C
+【出门1小时预报】
+温度：{cur_temp} °C 
+降水概率：{next_pop} % 
+风速：{cur_wind} km/h
+【全天宏观大局】
+最高温：{temp_max} °C / 最低温：{temp_min} °C
 最高风速：{wind_max} km/h / 最低风速：{wind_min} km/h
 全天降水量：{precip_sum} mm"""
 
