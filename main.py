@@ -10,9 +10,9 @@ def run_agent():
     email = os.environ["EMAIL"]
     app_password = os.environ["APP_PASSWORD"]
     ark_key = os.environ["ARK_API_KEY"]
-    
-    # 配置经纬度（23.54, 114.74 对应广东省河源市紫金县古竹镇
-      lat = 23.54
+
+    # 配置经纬度（23.54, 114.74 对应广东省河源市紫金县古竹镇附近）
+    lat = 23.54
     lon = 114.74
 
     # ===== 1.5 动态逆地理编码：精准精简到【市+县/区】 =====
