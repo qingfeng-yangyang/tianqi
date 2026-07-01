@@ -107,7 +107,9 @@ def run_agent():
 
 - 城市：{city_name}
 
-- 实时天气：{cur_temp}°C / {cur_humidity}% 
+- 【实时天气】
+温度：{cur_temp}°C 
+湿度：{cur_humidity}% 
 风速{cur_wind}km/h
 
 - 实际体感温度：约 [计算出的体感温度数字]°C [一到两个词形容体感，例如：闷热/干爽/凉爽]
