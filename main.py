@@ -11,14 +11,32 @@ def run_agent():
     app_password = os.environ["APP_PASSWORD"]
     ark_key = os.environ["ARK_API_KEY"]
 
-    # 定位城市名称（用于动态标题）
-    city_name = "河源古竹"
+    # 配置经纬度（改变这里，城市和天气都会自动切换）
+    lat = 23.54
+    lon = 114.74
 
-    # ===== 2. 气象数据抓取 (广东省河源市古竹镇) =====
-    # 将 daily 里的降水概率最大值替换为更直观的降水总量 (precipitation_sum)
+    # ===== 1.5 动态逆地理编码：通过经纬度获取城市名 =====
+    city_name = "未知城市"
+    try:
+        # 使用 open-meteo 自带的 geocoding 或 openstreetmap 免费接口
+        geo_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&accept-language=zh"
+        # 加上 User-Agent 规避合规检查
+        headers = {"User-Agent": "WeatherAgent/1.0"}
+        geo_res = requests.get(geo_url, headers=headers).json()
+        
+        address = geo_res.get("address", {})
+        # 优先取镇/村/区，如果没有就取城市名
+        city_name = address.get("town") or address.get("village") or address.get("suburb") or address.get("city") or "未知位置"
+        # 去掉“镇”或“村”字让标题更精简（可选）
+        city_name = city_name.replace("镇", "").replace("街道", "")
+    except Exception as e:
+        print(f"城市逆地理定位失败，使用默认名称。错误: {e}")
+        city_name = "河源古竹"  # 降级备用名
+
+    # ===== 2. 气象数据抓取 =====
     url = (
-        "https://api.open-meteo.com/v1/forecast"
-        "?latitude=23.54&longitude=114.74"
+        f"https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
         "&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         "&hourly=temperature_2m,precipitation_probability,cloud_cover,visibility"
         "&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_speed_10m_min,precipitation_sum,sunrise,sunset"
@@ -62,7 +80,7 @@ def run_agent():
 
         # 封装给 AI 的原料
         user_weather_data = f"""
-- 城市区域: 广东省河源市古竹镇
+- 城市区域: {city_name}
 - 实时当前温度: {cur_temp}°C
 - 当前相对湿度: {cur_humidity}%
 - 当前实际风速: {cur_wind} km/h
@@ -87,12 +105,12 @@ def run_agent():
 你是一个兼具顶级气象学家视角与贴心管家属性的智能体。请完全接管并自主渲染整份天气决策报告的全文。
 
 # Task
-根据传入的河源古竹镇原始气象数据，**严格按照指定格式**生成一整套完整的 Markdown 决策看板。
+根据传入的原始气象数据，**严格按照指定格式**生成一整套完整的 Markdown 决策看板。
 
 # Rules (硬性约束)
 1. 【标题动态输出】：大标题必须根据定位动态输出为：# {city_name}今日天气简报。严禁自作聪明生成带有时间段的标题。
 2. 【体感温度必须包含实际数据】：在 `## 1` 的子集里，你必须结合当前的“实时温度、相对湿度和风速”进行综合推演，**给出一个具体的、带物理单位的预计体感温度数字（如“约 xx°C”）**，并紧跟一两个词形容体感。
-3. 【严格遵循一整套排版格式】：输出的内容必须完全匹配以下制式，严禁合并或缺少模块。注：将原本的概率替换为更稳妥的总降水量表现形式：
+3. 【严格遵循一整套排版格式】：输出的内容必须完全匹配以下制式，严禁合并或缺少模块。
 
    ☀️ 今日天气决策情报
    【出门1小时预报】温度：(填入下一小时温度) °C / 降水概率：(填入下一小时降水概率) % / 风速：(填入当前风速) km/h
